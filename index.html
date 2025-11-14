@@ -65,6 +65,25 @@
     60%{opacity:1; transform:translateY(-4px) scale(1.04); filter:blur(0)}
     100%{opacity:1; transform:translateY(0) scale(1)}
   }
+  /* Dòng chữ dưới trái tim */
+  #belowHeart{
+    min-height:2.4em;
+    color:#ffe9fb;
+    font-size:clamp(16px, 2.1vw, 22px);
+    font-weight:500;
+    letter-spacing:.03em;
+    text-align:center;
+    text-shadow:0 0 10px rgba(255,140,220,.85);
+    opacity:0;
+    transform:translateY(8px);
+    transition:opacity .6s ease, transform .6s ease;
+    pointer-events:none;
+  }
+
+  #belowHeart.show{
+    opacity:1;
+    transform:translateY(0);
+  }
 
   /* Chữ rơi nhỏ */
   .fallingText {
@@ -72,7 +91,7 @@
     top: -40px;
     left: 50%;
     transform: translateX(-50%);
-    font-size: 18px;
+    font-size: 14px;               /* nhỏ hơn */
     font-weight: 700;
     pointer-events: none;
     white-space: nowrap;
@@ -88,11 +107,20 @@
     animation: fall linear forwards, shineSweep 3.6s linear infinite;
   }
 
-  @keyframes fall {
-    0%   { transform: translateY(-60px) translateX(var(--x)); opacity: 0; }
-    10%  { opacity: 1; }
-    100% { transform: translateY(120vh) translateX(var(--x)); opacity: 0; }
+  /* Mobile: chữ càng nhỏ nữa cho chắc */
+  @media (max-width: 600px){
+    .fallingText{
+      font-size: 11px;
+    }
   }
+
+
+  @keyframes fall {
+    0%   { transform: translateY(-60px) translateX(calc(-50% + var(--x))); opacity: 0; }
+    10%  { opacity: 1; }
+    100% { transform: translateY(120vh) translateX(calc(-50% + var(--x))); opacity: 0; }
+  }
+
 
   @keyframes shineSweep {
     0% { background-position: -200% 0, 0 50% }
@@ -464,9 +492,14 @@
     requestAnimationFrame(render);
     // bắt đầu chữ rơi
     spawnFallingText();
+    // khởi tạo orbiters chạy quanh tim
+    initOrbiters();
+    // bắt đầu đổi câu chúc dưới trái tim
+    cycleBelowText();
     // nổ 1 cú burst ở giữa sau 1 chút
     setTimeout(()=> spawnBurst(window.innerWidth/2, window.innerHeight/2, 200, 1.4), 1200);
   }
+
 
   function createLotusIntro() {
     const intro   = document.getElementById("lotusIntro");
@@ -596,6 +629,22 @@
     return pts;
   }
   const basePath = samplePath(800);
+  // Đốm sáng chạy quanh đường trái tim
+  const orbiters = [];
+  function initOrbiters(){
+    orbiters.length = 0;
+    const COUNT = 12;
+    for(let i=0;i<COUNT;i++){
+      orbiters.push({
+        t: Math.random()*basePath.length,    // vị trí trên path
+        speed: 0.012 + Math.random()*0.02,   // tốc độ trôi
+        size: 3 + Math.random()*3
+      });
+    }
+  }
+
+  // Tia sáng bắn ra mỗi nhịp tim
+  const rays = [];
 
   /* ==========================
      PARTICLES
@@ -632,14 +681,29 @@
   const beatInterval = 1050;
 
   function onBeat(){
+    // gợn sóng
     ripples.push({r: R*0.4, a: 1});
+
+    // pháo hoa quanh đường tim
     for(let i=0;i<80;i++){
       const p = basePath[(Math.random()*basePath.length)|0];
       const x = CX + p.x * R;
       const y = CY + p.y * R;
       spawnParticle(x,y, 1.6);
     }
+
+    // tia sáng radial
+    const RAY_COUNT = 10;
+    for(let i=0;i<RAY_COUNT;i++){
+      const ang = (Math.PI*2/RAY_COUNT)*i + Math.random()*0.5;
+      rays.push({
+        ang,
+        len: R*0.4,
+        alpha: 1
+      });
+    }
   }
+
 
   function positionBelow(){
     const margin = 28;
@@ -711,15 +775,48 @@
     ctx.setLineDash([dashLen, gap]);
     ctx.lineDashOffset = -dashOffset;
 
+    // stroke trái tim
     ctx.stroke();
 
+    // fill nhẹ bên trong tim
     const g = ctx.createRadialGradient(0,0, R*0.1, 0,0, R*0.9);
     g.addColorStop(0, 'rgba(255,166,222,0.35)');
     g.addColorStop(1, 'rgba(255,110,190,0.02)');
     ctx.fillStyle = g;
     ctx.fill();
 
+    /* Vầng sáng đập theo nhịp tim */
+    const glowPulse = 0.35 + 0.25*Math.sin((now/beatInterval)*Math.PI*2);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const g2 = ctx.createRadialGradient(0,0,R*0.2, 0,0,R*1.25);
+    g2.addColorStop(0, `rgba(255,190,245,${glowPulse})`);
+    g2.addColorStop(1, 'rgba(255,130,220,0)');
+    ctx.fillStyle = g2;
+    ctx.fillRect(-R*1.3, -R*1.3, R*2.6, R*2.6);
     ctx.restore();
+
+    /* Orbiters – đốm sáng chạy quanh viền tim */
+    for(const o of orbiters){
+      o.t += o.speed * dt * 0.06;
+      if(o.t >= basePath.length) o.t -= basePath.length;
+
+      const idx = Math.floor(o.t) % basePath.length;
+      const p = basePath[idx];
+      const ox = p.x * (R*0.98);
+      const oy = p.y * (R*0.98);
+
+      const pulse = 0.7 + 0.3*Math.sin(now*0.008 + o.t*0.02);
+      const s = o.size * pulse;
+
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(255,230,255,${0.7*pulse})`;
+      ctx.arc(ox, oy, s/2, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+
 
     /* RIPPLES */
     for(let i=ripples.length-1; i>=0; i--){
@@ -737,27 +834,31 @@
       ctx.stroke();
     }
 
-    /* PARTICLES */
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    for(let i=particles.length-1;i>=0;i--){
-      const p = particles[i];
-      p.life += 1;
-      p.x += p.vx;
-      p.y += p.vy;
-      p.vx *= 0.995;
-      p.vy *= 0.995;
-      const fade = 1 - p.life/p.max;
-      if(fade <= 0){
-        particles.splice(i,1);
+    /* TIA SÁNG từ tim */
+    for(let i=rays.length-1; i>=0; i--){
+      const r = rays[i];
+      r.len += dt*0.25;
+      r.alpha *= 0.96;
+      if(r.alpha < 0.02){
+        rays.splice(i,1);
         continue;
       }
+
+      ctx.save();
+      ctx.translate(CX, CY);
+      ctx.rotate(r.ang);
+      const grad = ctx.createLinearGradient(0,0, r.len,0);
+      grad.addColorStop(0, `rgba(255,200,250,${r.alpha})`);
+      grad.addColorStop(1, 'rgba(255,200,250,0)');
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.fillStyle = `hsla(${p.hue}, ${p.sat}%, ${p.light}%, ${Math.max(.08, .6*fade)})`;
-      ctx.arc(p.x, p.y, p.size * (1+0.6*(1-fade)), 0, Math.PI*2);
-      ctx.fill();
+      ctx.moveTo(R*0.2, 0);
+      ctx.lineTo(R*0.2 + r.len, 0);
+      ctx.stroke();
+      ctx.restore();
     }
-    ctx.restore();
+
 
     requestAnimationFrame(render);
   }
@@ -831,35 +932,64 @@
   ========================== */
 
   const lines = [
-    "Tập thể lớp 9/10 chúc cô 20/11 vui vẻ",
-    "Kính chúc cô nhiều sức khỏe",
+    "Chúc cô một ngày 20/11 thật ý nghĩa và tràn ngập niềm vui.",
+    "Kính chúc cô luôn bình an, niềm vui và may mắn tràn ngập mỗi ngày.",
     "Chúc cô luôn vui vẻ và hạnh phúc",
-    "Tập thể lớp 9/10 luôn yêu thương cô!",
+    "Kính chúc cô luôn tràn đầy nhiệt huyết để dìu dắt chúng em đến bến bờ tri thức.",
     "Chúc cô một ngày 20/11 thật rực rỡ ✨",
+  ];
+  const belowMessages = [
+    "Tập thể lớp 9/10 chúc cô 20/11 vui vẻ ❤️",
+    "Chúc cô luôn vui khỏe, mãi là ngọn đèn soi sáng tri thức cho học trò.",
+    "Chúc cô luôn khỏe mạnh, bình an và hạnh phúc 🌸",
+    "Mỗi ngày đến lớp cùng cô là một kỷ niệm 💖"
   ];
 
   const rain = document.getElementById("rainContainer");
+  let belowIndex = 0;
+
+  function cycleBelowText(){
+    if(!below) return;
+
+    // ẩn nhẹ rồi đổi chữ
+    below.classList.remove('show');
+
+    setTimeout(() => {
+      below.textContent = belowMessages[belowIndex];
+      belowIndex = (belowIndex + 1) % belowMessages.length;
+      below.classList.add('show');
+    }, 260);
+
+    // lặp sau 4.2s
+    setTimeout(cycleBelowText, 4200);
+  }
 
   function spawnFallingText() {
     const div = document.createElement("div");
     div.className = "fallingText";
-
     div.textContent = lines[Math.floor(Math.random() * lines.length)];
 
-    const x = (Math.random() * 90 - 45) + "vw";
-    div.style.setProperty("--x", x);
+    // Cho vào DOM trước để đo width
+    rain.appendChild(div);
+
+    const viewportW = window.innerWidth;
+    const textW = div.offsetWidth;
+
+    // Chừa mỗi bên ~8px, tính biên độ lệch tối đa
+    const maxOffset = Math.max(0, (viewportW - textW) / 2 - 8);
+    const offset = (Math.random() * 2 - 1) * maxOffset; // [-maxOffset, maxOffset]
+
+    // Đặt offset theo px
+    div.style.setProperty("--x", offset + "px");
 
     const duration = Math.random() * 3 + 4;
     div.style.animationDuration = duration + "s";
-
-    rain.appendChild(div);
 
     setTimeout(() => div.remove(), duration * 1000);
     setTimeout(spawnFallingText, 500 + Math.random() * 800);
   }
 
-  // ❌ KHÔNG gọi spawnFallingText ở đây nữa
-  // spawnFallingText();
+
 
 })();
 </script>
