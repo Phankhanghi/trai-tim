@@ -1,8 +1,6 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-<meta name="description" content="Hộp mù bí ẩn của lớp 9/10 😋">
-<meta property="og:title" content="Hộp mù bí ẩn của lớp 9/10 😋">
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Hộp mù bí ẩn của lớp 9/10😋 </title>
@@ -432,6 +430,18 @@
     from { filter: blur(0px);}
     to   { filter: blur(18px);}
   }
+  /* ================================
+    MOBILE: Thu nhỏ toàn bộ giao diện
+    để giống PC, giữ nguyên tỉ lệ
+  ================================ */
+
+
+  @media (max-width: 768px) {
+    #lotusIntro, .lotusGlow, .lotusAura {
+      filter: none !important;
+      box-shadow: none !important;
+    }
+  }
 
 </style>
 </head>
@@ -452,11 +462,7 @@
     <div class="ripple r2"></div>
     <div class="ripple r3"></div>
 
-    <!-- Text intro -->
-    <div class="introTextWrap">
-      <div class="introTitle">TẬP THỂ LỚP 9/10</div>
-      <div class="introSubtitle">Kính chúc cô 20/11 thật nhiều niềm vui và hạnh phúc ✨</div>
-    </div>
+
 
     <!-- RÈM MỞ CHUYỂN CẢNH -->
     <div id="lotusCurtain"></div>
@@ -480,6 +486,20 @@
 <div id="belowHeart"></div>
 <script>
 (() => {
+  // Giảm mạnh số particle để đỡ lag mobile
+  const MOBILE = window.innerWidth < 768;
+
+  // Giảm số hiệu ứng khi mobile
+  if (MOBILE) {
+      // Sao giảm
+      window.STAR_COUNT = 80;
+
+      // Orbiters giảm
+      window.ORBITER_COUNT = 6;
+
+      // Particle spawn giảm 
+      window.MAX_PARTICLES = 40;
+  }
 
   /* ==========================
      HÀM BẮT ĐẦU MAIN SCENE
